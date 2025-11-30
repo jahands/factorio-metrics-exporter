@@ -19,20 +19,23 @@ local function export_metrics()
 
   local force = game.forces["player"]
 
-  -- Item production statistics
-  for name, count in pairs(force.item_production_statistics.input_counts) do
-    data.items.produced[name] = count
-  end
-  for name, count in pairs(force.item_production_statistics.output_counts) do
-    data.items.consumed[name] = count
-  end
+  -- Collect stats from all surfaces
+  for _, surface in pairs(game.surfaces) do
+    local item_stats = force.get_item_production_statistics(surface)
+    for name, count in pairs(item_stats.input_counts) do
+      data.items.produced[name] = (data.items.produced[name] or 0) + count
+    end
+    for name, count in pairs(item_stats.output_counts) do
+      data.items.consumed[name] = (data.items.consumed[name] or 0) + count
+    end
 
-  -- Fluid production statistics
-  for name, count in pairs(force.fluid_production_statistics.input_counts) do
-    data.fluids.produced[name] = count
-  end
-  for name, count in pairs(force.fluid_production_statistics.output_counts) do
-    data.fluids.consumed[name] = count
+    local fluid_stats = force.get_fluid_production_statistics(surface)
+    for name, count in pairs(fluid_stats.input_counts) do
+      data.fluids.produced[name] = (data.fluids.produced[name] or 0) + count
+    end
+    for name, count in pairs(fluid_stats.output_counts) do
+      data.fluids.consumed[name] = (data.fluids.consumed[name] or 0) + count
+    end
   end
 
   -- Research progress
