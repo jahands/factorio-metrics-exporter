@@ -96,10 +96,7 @@ local function enqueue_surface_slices(state, surface_name, force_data)
     local force_entry = force_data[i]
     local common = {
       surface = surface_name,
-      force = force_entry.force,
-      tick_collected = game_tick,
-      timestamp = game_tick / 60,
-      cycle_started_tick = state.cycle.started_tick
+      force = force_entry.force
     }
 
     local function slice_table(tbl, kind)
@@ -195,13 +192,6 @@ local function export_cycle(state, player_targets)
     return
   end
 
-  local research_entry = {
-    type = "forces",
-    tick = state.cycle.completed_tick or game.tick,
-    cycle_started_tick = state.cycle.started_tick,
-    forces = collect_force_research_states()
-  }
-
   local end_entry = {
     type = "cycle_end",
     tick = state.cycle.completed_tick or game.tick,
@@ -210,7 +200,6 @@ local function export_cycle(state, player_targets)
     players = #game.connected_players
   }
 
-  write_jsonl_entry(research_entry, state)
   write_jsonl_entry(end_entry, state)
 
   local buffer = state.buffer
@@ -257,6 +246,15 @@ process_tick = function()
     for name, _ in pairs(game.surfaces) do
       state.surface_names[#state.surface_names + 1] = name
     end
+
+    -- Emit force research states at cycle start
+    local research_entry = {
+      type = "forces",
+      tick = state.cycle.started_tick,
+      cycle_started_tick = state.cycle.started_tick,
+      forces = collect_force_research_states()
+    }
+    write_jsonl_entry(research_entry, state)
   end
 
   local surface_names = state.surface_names
@@ -275,6 +273,16 @@ process_tick = function()
 
     if surface then
       local surface_data = collect_surface_stats(surface)
+      -- Surface metadata entry
+      local meta_entry = {
+        type = "surface",
+        surface = surface_name,
+        tick_collected = game.tick,
+        timestamp = game.tick / 60,
+        cycle_started_tick = state.cycle.started_tick
+      }
+      write_jsonl_entry(meta_entry, state)
+
       enqueue_surface_slices(state, surface_name, surface_data)
     end
   end
@@ -292,9 +300,6 @@ process_tick = function()
       type = slice.type,
       surface = slice.common.surface,
       force = slice.common.force,
-      tick_collected = slice.common.tick_collected,
-      timestamp = slice.common.timestamp,
-      cycle_started_tick = slice.common.cycle_started_tick,
       data = slice.data
     }
     write_jsonl_entry(entry, state)
