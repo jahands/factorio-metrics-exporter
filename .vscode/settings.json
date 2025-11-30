@@ -7,5 +7,8 @@
     "*.tsx": "$(capture).ts",
     "package.json": ".*, turbo.jsonc, info.json, *.code-workspace, TODO.md, PRD.md, AGENT.md, CLAUDE.md, railway.json, *.config.mts, *.config.ts, *.config.mts, biome.json, *.d.ts, *.env, *.env.example, docker-compose.yml, dagger.json, bun.lock, vitest.config.*.ts, jest.config.js, biome.json, astro.config.ts, eslint.config.cjs, wrangler.jsonc, tailwind.config.mjs, astroblog.code-workspace, astro.config.mjs, drizzle.config.ts, Earthfile, workers.code-workspace, Justfile, CHANGELOG.md, vitest.config.ts, vitest.workspace.ts, postcss.config.mjs, vite.config.ts, worker-configuration.d.ts, README.md, package-lock.json, yarn.lock, postcss.config.js, remix.config.js, remix.env.d.ts, tailwind.config.js, tsconfig.json, server.ts, tailwind.config.ts, turbo.json, LICENSE, wrangler.toml, pnpm-lock.yaml, pnpm-workspace.yaml",
     "tsconfig.json": "tsconfig.*.json"
+  },
+  "files.associations": {
+    "**/.vscode/bin/*": "shellscript"
   }
 }
