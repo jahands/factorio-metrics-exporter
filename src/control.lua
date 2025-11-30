@@ -171,8 +171,37 @@ local function get_opted_in_player_indices()
   return player_targets
 end
 
-local function write_jsonl_entry(entry, player_targets)
+local function write_jsonl_entry(entry, state)
   local payload = helpers.table_to_json(entry) .. "\n"
+  local buffer = state.buffer
+  if not buffer then
+    buffer = {}
+    state.buffer = buffer
+  end
+  buffer[#buffer + 1] = payload
+end
+
+local function export_cycle(state, player_targets)
+  if not state or not state.cycle then
+    return
+  end
+
+  local end_entry = {
+    type = "cycle_end",
+    tick = state.cycle.completed_tick or game.tick,
+    cycle_started_tick = state.cycle.started_tick,
+    cycle_completed_tick = state.cycle.completed_tick,
+    players = #game.connected_players
+  }
+
+  write_jsonl_entry(end_entry, state)
+
+  local buffer = state.buffer
+  if not buffer or #buffer == 0 then
+    return
+  end
+
+  local payload = table.concat(buffer)
   local filename = constants.files.metrics
 
   -- Always write to server output (append)
@@ -183,22 +212,8 @@ local function write_jsonl_entry(entry, player_targets)
   for i = 1, #player_targets do
     helpers.write_file(filename, payload, true, player_targets[i])
   end
-end
 
-local function export_cycle(cycle, player_targets)
-  if not cycle then
-    return
-  end
-
-  local end_entry = {
-    type = "cycle_end",
-    tick = cycle.completed_tick or game.tick,
-    cycle_started_tick = cycle.started_tick,
-    cycle_completed_tick = cycle.completed_tick,
-    players = #game.connected_players
-  }
-
-  write_jsonl_entry(end_entry, player_targets)
+  state.buffer = nil
 end
 
 -- Main tick handler: process one surface per tick
@@ -216,10 +231,10 @@ process_tick = function()
   -- Start of new cycle: rebuild surface list from game.surfaces
   if state.surface_index == 1 then
     state.cycle = {
-      started_tick = game.tick,
-      slice_queue = {}
+      started_tick = game.tick
     }
     state.slice_queue = { head = 1, tail = 0, data = {} }
+    state.buffer = {}
     state.enqueued_all_surfaces = false
     state.surface_names = {}
     for name, _ in pairs(game.surfaces) do
@@ -266,7 +281,7 @@ process_tick = function()
       research = slice.common.research,
       data = slice.data
     }
-    write_jsonl_entry(entry, player_targets)
+    write_jsonl_entry(entry, state)
     slices_processed = slices_processed + 1
   end
 
@@ -276,7 +291,7 @@ process_tick = function()
 
     -- Complete cycle: write aggregated file and reset cycle
     state.cycle.completed_tick = game.tick
-    export_cycle(state.cycle, player_targets)
+    export_cycle(state, player_targets)
     state.cycle = nil
     state.slice_queue = nil
     state.enqueued_all_surfaces = nil
