@@ -53,8 +53,8 @@ local function export_metrics()
 end
 
 local function register_export_handler()
-  local interval = settings.global["factorio-metrics-exporter-interval"].value
-  script.on_nth_tick(nil)
+  local interval = settings.global["factorio-metrics-exporter-interval"].value --[[@as integer]]
+  script.on_nth_tick(nil) -- clear existing handlers to prevent duplicates
   script.on_nth_tick(interval, function(event)
     export_metrics()
   end)
