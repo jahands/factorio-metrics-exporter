@@ -52,14 +52,6 @@ local function export_metrics()
   )
 end
 
-script.on_init(function()
-  storage.metrics_exporter = {}
-end)
-
-script.on_configuration_changed(function(data)
-  storage.metrics_exporter = storage.metrics_exporter or {}
-end)
-
 local function register_export_handler()
   local interval = settings.global["factorio-metrics-exporter-interval"].value
   script.on_nth_tick(nil)
@@ -68,17 +60,21 @@ local function register_export_handler()
   end)
 end
 
-script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
-  if event.setting == "factorio-metrics-exporter-interval" then
-    register_export_handler()
-  end
+script.on_init(function()
+  storage.metrics_exporter = {}
+  register_export_handler()
+end)
+
+script.on_configuration_changed(function(data)
+  storage.metrics_exporter = storage.metrics_exporter or {}
 end)
 
 script.on_load(function()
   register_export_handler()
 end)
 
-script.on_init(function()
-  storage.metrics_exporter = {}
-  register_export_handler()
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  if event.setting == "factorio-metrics-exporter-interval" then
+    register_export_handler()
+  end
 end)
