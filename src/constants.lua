@@ -1,5 +1,6 @@
 return {
   settings = {
-    interval = "factorio-metrics-export-interval"
+    interval = "metrics-exporter-interval",
+    per_player = "metrics-exporter-per-player"
   }
 }

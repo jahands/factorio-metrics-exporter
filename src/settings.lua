@@ -8,5 +8,11 @@ data:extend({
     default_value = 600,
     minimum_value = 60,
     maximum_value = 3600
+  },
+  {
+    type = "bool-setting",
+    name = constants.settings.per_player,
+    setting_type = "runtime-per-user",
+    default_value = false
   }
 })
