@@ -1,0 +1,10 @@
+{
+  "name": "factorio-metrics-exporter",
+  "version": "0.1.0",
+  "title": "Factorio Metrics Exporter",
+  "author": "Geostyx",
+  "description": "Export Factorio metrics to Prometheus/etc.",
+  "factorio_version": "2.0",
+  "dependencies": ["base >= 2.0"],
+  "homepage": "https://github.com/jahands/factorio-metrics-exporter"
+}
