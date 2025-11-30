@@ -41,7 +41,7 @@ local function export_metrics()
     data.research.progress = force.research_progress
   end
 
-  game.write_file(
+  helpers.write_file(
     "factorio-metrics-exporter/metrics.json",
     helpers.table_to_json(data),
     false,
