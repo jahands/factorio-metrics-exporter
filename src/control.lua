@@ -5,10 +5,9 @@ local constants = require("constants")
 local pairs = pairs
 local math_floor = math.floor
 local math_max = math.max
-local math_min = math.min
 
 -- Storage schema version - increment when structure changes
-local STORAGE_VERSION = 5
+local STORAGE_VERSION = 6
 
 -- Forward declaration for process_tick (needed due to circular dependency with register functions)
 local process_tick
@@ -16,7 +15,7 @@ local process_tick
 local function create_fresh_storage()
   return {
     version = STORAGE_VERSION,
-    surfaces = {},
+    surface_names = {},
     surface_index = 1,
     tick_interval = nil,
     cycle = nil
@@ -37,7 +36,8 @@ local function migrate_storage()
   -- Version 0/1: had {phase, pending} from 3-phase approach
   -- Version 2: had {surface_names, surface_index, pending, tick_interval}
   -- Version 3/4: had {surface_names, surface_index, tick_interval, cycle}
-  -- Version 5: has {surfaces, surface_index, tick_interval, cycle} - surfaces carry entity counts
+  -- Version 5: had {surfaces, surface_index, tick_interval, cycle} - surfaces carried entity counts
+  -- Version 6: has {surface_names, surface_index, tick_interval, cycle} - one surface per tick
   storage.metrics_exporter = create_fresh_storage()
 end
 
@@ -155,7 +155,7 @@ local function export_cycle(cycle, player_targets)
   end
 end
 
--- Main tick handler: process surfaces within the per-tick entity budget
+-- Main tick handler: process one surface per tick
 process_tick = function()
   -- Ensure storage is migrated (idempotent - only migrates if needed)
   migrate_storage()
@@ -169,31 +169,18 @@ process_tick = function()
 
   -- Start of new cycle: rebuild surface list from game.surfaces
   if state.surface_index == 1 then
-    local entity_budget_setting = math_max(settings_accessor.get_entity_budget(), 1)
-    local count_limit = math_min(entity_budget_setting, 256)
     state.cycle = {
       started_tick = game.tick,
       surfaces = {}
     }
-    state.surfaces = {}
-    for name, surface in pairs(game.surfaces) do
-      local entity_count = 0
-      if surface and surface.valid then
-        -- Approximate work by counting a small sample; treat "at least count_limit" as a full-budget surface
-        local counted = surface.count_entities_filtered({ limit = count_limit + 1 })
-        if counted > count_limit then
-          entity_count = entity_budget_setting
-        else
-          entity_count = counted
-        end
-      end
-      state.surfaces[#state.surfaces + 1] = { name = name, entity_count = entity_count }
+    state.surface_names = {}
+    for name, _ in pairs(game.surfaces) do
+      state.surface_names[#state.surface_names + 1] = name
     end
-    state.entity_budget = entity_budget_setting
   end
 
-  local surfaces = state.surfaces
-  local surface_count = #surfaces
+  local surface_names = state.surface_names
+  local surface_count = #surface_names
 
   if surface_count == 0 then
     -- Nothing to export; reset and try again next tick
@@ -202,33 +189,17 @@ process_tick = function()
     return
   end
 
-  local entity_budget = state.entity_budget or math_max(settings_accessor.get_entity_budget(), 1)
-  local used_budget = 0
+  local surface_name = surface_names[state.surface_index]
+  local surface = game.surfaces[surface_name]
 
-  while used_budget < entity_budget and state.surface_index <= surface_count do
-    local surface_entry = surfaces[state.surface_index]
-    local surface_name = surface_entry.name
-    local surface = game.surfaces[surface_name]
-    local surface_cost = surface_entry.entity_count or 0
-
-    -- If we've already done work this tick and adding this surface would exceed budget, defer to next tick
-    if used_budget > 0 and used_budget + surface_cost > entity_budget then
-      break
-    end
-
-    if surface then
-      local surface_data = collect_surface_stats(surface)
-      local entry = export_surface_metrics(surface_name, surface_data)
-      entry.entity_count = surface_cost
-      state.cycle.surfaces[#state.cycle.surfaces + 1] = entry
-      used_budget = used_budget + surface_cost
-    end
-
-    state.surface_index = state.surface_index + 1
+  if surface then
+    local surface_data = collect_surface_stats(surface)
+    local entry = export_surface_metrics(surface_name, surface_data)
+    state.cycle.surfaces[#state.cycle.surfaces + 1] = entry
   end
 
-  -- End of surfaces list: complete cycle and write file
-  if state.surface_index > surface_count then
+  -- Advance to next surface (cycle back to 1 at end)
+  if state.surface_index >= surface_count then
     state.surface_index = 1
 
     -- Complete cycle: write aggregated file and reset cycle
@@ -236,6 +207,8 @@ process_tick = function()
     local player_targets = get_opted_in_player_indices()
     export_cycle(state.cycle, player_targets)
     state.cycle = nil
+  else
+    state.surface_index = state.surface_index + 1
   end
 end
 

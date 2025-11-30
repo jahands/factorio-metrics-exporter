@@ -17,11 +17,4 @@ function M.should_export_for_player(player)
   return setting and setting.value or false --[[@as boolean]]
 end
 
----Get configured entity budget per tick
----@return integer
-function M.get_entity_budget()
-  local setting = settings.global[constants.settings.entity_budget]
-  return setting and setting.value or 2000 --[[@as integer]]
-end
-
 return M
