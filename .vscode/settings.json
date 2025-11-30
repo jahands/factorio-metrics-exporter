@@ -11,15 +11,8 @@
   "files.associations": {
     "**/.vscode/bin/*": "shellscript"
   },
-  "factorio.versions": [
-    {
-      "name": "System",
-      "factorioPath": "/Applications/factorio.app/Contents/MacOS/factorio",
-      "active": true
-    }
-  ],
   "Lua.workspace.userThirdParty": [
-    "/Users/jh/Library/Application Support/Cursor/User/workspaceStorage/6fbf4a92a7de0bea9ffeaa1e3fb48d7f/justarandomgeek.factoriomod-debug/sumneko-3rd"
+    "/Users/jh/Library/Application Support/Code/User/workspaceStorage/6fbf4a92a7de0bea9ffeaa1e3fb48d7f/justarandomgeek.factoriomod-debug/sumneko-3rd"
   ],
   "Lua.workspace.checkThirdParty": "ApplyInMemory"
 }
