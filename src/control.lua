@@ -114,9 +114,6 @@ local function enqueue_surface_slices(state, surface_name, force_data)
     slice_table(force_entry.items_consumed, "items_consumed")
     slice_table(force_entry.fluids_produced, "fluids_produced")
     slice_table(force_entry.fluids_consumed, "fluids_consumed")
-
-    -- Mark end of this force/surface
-    push({ type = "surface_end", data = {}, common = common })
   end
 end
 
