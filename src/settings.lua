@@ -1,7 +1,9 @@
+local constants = require("constants")
+
 data:extend({
   {
     type = "int-setting",
-    name = "factorio-metrics-exporter-interval",
+    name = constants.settings.interval,
     setting_type = "runtime-global",
     default_value = 600,
     minimum_value = 60,
