@@ -5,6 +5,7 @@ local constants = require("constants")
 local pairs = pairs
 local math_floor = math.floor
 local math_max = math.max
+local math_min = math.min
 
 -- Storage schema version - increment when structure changes
 local STORAGE_VERSION = 5
@@ -169,6 +170,7 @@ process_tick = function()
   -- Start of new cycle: rebuild surface list from game.surfaces
   if state.surface_index == 1 then
     local entity_budget_setting = math_max(settings_accessor.get_entity_budget(), 1)
+    local count_limit = math_min(entity_budget_setting, 256)
     state.cycle = {
       started_tick = game.tick,
       surfaces = {}
@@ -177,8 +179,13 @@ process_tick = function()
     for name, surface in pairs(game.surfaces) do
       local entity_count = 0
       if surface and surface.valid then
-        -- Approximate work by counting up to the per-tick budget worth of entities
-        entity_count = surface.count_entities_filtered({ limit = entity_budget_setting + 1 })
+        -- Approximate work by counting a small sample; treat "at least count_limit" as a full-budget surface
+        local counted = surface.count_entities_filtered({ limit = count_limit + 1 })
+        if counted > count_limit then
+          entity_count = entity_budget_setting
+        else
+          entity_count = counted
+        end
       end
       state.surfaces[#state.surfaces + 1] = { name = name, entity_count = entity_count }
     end
