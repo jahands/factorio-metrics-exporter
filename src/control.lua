@@ -54,15 +54,28 @@ local function collect_surface_stats(surface)
       items_produced = item_stats.input_counts,
       items_consumed = item_stats.output_counts,
       fluids_produced = fluid_stats.input_counts,
-      fluids_consumed = fluid_stats.output_counts,
-      research = {
-        current = force.current_research and force.current_research.name or nil,
-        progress = force.current_research and force.research_progress or 0
-      }
+      fluids_consumed = fluid_stats.output_counts
     }
   end
 
   return forces
+end
+
+local function collect_force_research_states()
+  local research_states = {}
+
+  for _, force in pairs(game.forces) do
+    local current = force.current_research
+    research_states[#research_states + 1] = {
+      force = force.name,
+      research = {
+        current = current and current.name or nil,
+        progress = current and force.research_progress or 0
+      }
+    }
+  end
+
+  return research_states
 end
 
 local function enqueue_surface_slices(state, surface_name, force_data)
@@ -86,7 +99,6 @@ local function enqueue_surface_slices(state, surface_name, force_data)
       force = force_entry.force,
       tick_collected = game_tick,
       timestamp = game_tick / 60,
-      research = force_entry.research,
       cycle_started_tick = state.cycle.started_tick
     }
 
@@ -183,6 +195,13 @@ local function export_cycle(state, player_targets)
     return
   end
 
+  local research_entry = {
+    type = "forces",
+    tick = state.cycle.completed_tick or game.tick,
+    cycle_started_tick = state.cycle.started_tick,
+    forces = collect_force_research_states()
+  }
+
   local end_entry = {
     type = "cycle_end",
     tick = state.cycle.completed_tick or game.tick,
@@ -191,6 +210,7 @@ local function export_cycle(state, player_targets)
     players = #game.connected_players
   }
 
+  write_jsonl_entry(research_entry, state)
   write_jsonl_entry(end_entry, state)
 
   local buffer = state.buffer
@@ -275,7 +295,6 @@ process_tick = function()
       tick_collected = slice.common.tick_collected,
       timestamp = slice.common.timestamp,
       cycle_started_tick = slice.common.cycle_started_tick,
-      research = slice.common.research,
       data = slice.data
     }
     write_jsonl_entry(entry, state)
