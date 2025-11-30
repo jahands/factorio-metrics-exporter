@@ -5,5 +5,9 @@ return {
   },
   files = {
     metrics = "metrics-exporter/metrics.jsonl"
+  },
+  limits = {
+    slice_size = 200,
+    slices_per_tick = 1
   }
 }

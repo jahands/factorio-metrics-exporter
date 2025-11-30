@@ -65,18 +65,59 @@ local function collect_surface_stats(surface)
   return forces
 end
 
-local function export_surface_metrics(surface_name, force_data, player_targets)
+local function enqueue_surface_slices(state, surface_name, force_data)
   local game_tick = game.tick
+  local slice_size = constants.limits.slice_size
+  local queue = state.slice_queue
+  if not queue then
+    queue = { head = 1, tail = 0, data = {} }
+    state.slice_queue = queue
+  end
 
-  local entry = {
-    type = "surface",
-    surface = surface_name,
-    tick_collected = game_tick,
-    timestamp = game_tick / 60,
-    forces = force_data
-  }
+  local function push(entry)
+    queue.tail = queue.tail + 1
+    queue.data[queue.tail] = entry
+  end
 
-  return entry
+  for i = 1, #force_data do
+    local force_entry = force_data[i]
+    local common = {
+      surface = surface_name,
+      force = force_entry.force,
+      tick_collected = game_tick,
+      timestamp = game_tick / 60,
+      research = force_entry.research,
+      cycle_started_tick = state.cycle.started_tick
+    }
+
+    local function slice_table(tbl, kind)
+      if not tbl then
+        return
+      end
+      local slice = {}
+      local count = 0
+      for name, value in pairs(tbl) do
+        slice[name] = value
+        count = count + 1
+        if count >= slice_size then
+          push({ type = kind, data = slice, common = common })
+          slice = {}
+          count = 0
+        end
+      end
+      if count > 0 then
+        push({ type = kind, data = slice, common = common })
+      end
+    end
+
+    slice_table(force_entry.items_produced, "items_produced")
+    slice_table(force_entry.items_consumed, "items_consumed")
+    slice_table(force_entry.fluids_produced, "fluids_produced")
+    slice_table(force_entry.fluids_consumed, "fluids_consumed")
+
+    -- Mark end of this force/surface
+    push({ type = "surface_end", data = {}, common = common })
+  end
 end
 
 -- Calculate tick interval based on surface count (only call when game is available)
@@ -130,15 +171,25 @@ local function get_opted_in_player_indices()
   return player_targets
 end
 
+local function write_jsonl_entry(entry, player_targets)
+  local payload = helpers.table_to_json(entry) .. "\n"
+  local filename = constants.files.metrics
+
+  -- Always write to server output (append)
+  helpers.write_file(filename, payload, true, 0)
+
+  -- Optionally mirror to opted-in players for debugging
+  player_targets = player_targets or {}
+  for i = 1, #player_targets do
+    helpers.write_file(filename, payload, true, player_targets[i])
+  end
+end
+
 local function export_cycle(cycle, player_targets)
-  if not cycle or not cycle.surfaces or #cycle.surfaces == 0 then
+  if not cycle then
     return
   end
 
-  player_targets = player_targets or {}
-  local filename = constants.files.metrics
-
-  -- Write per-surface entries as JSONL during the cycle (already appended), now write cycle_end marker
   local end_entry = {
     type = "cycle_end",
     tick = cycle.completed_tick or game.tick,
@@ -147,15 +198,7 @@ local function export_cycle(cycle, player_targets)
     players = #game.connected_players
   }
 
-  local payload = helpers.table_to_json(end_entry) .. "\n"
-
-  -- Always write to server output (append)
-  helpers.write_file(filename, payload, true, 0)
-
-  -- Optionally mirror to opted-in players for debugging
-  for i = 1, #player_targets do
-    helpers.write_file(filename, payload, true, player_targets[i])
-  end
+  write_jsonl_entry(end_entry, player_targets)
 end
 
 -- Main tick handler: process one surface per tick
@@ -174,8 +217,10 @@ process_tick = function()
   if state.surface_index == 1 then
     state.cycle = {
       started_tick = game.tick,
-      surfaces = {}
+      slice_queue = {}
     }
+    state.slice_queue = { head = 1, tail = 0, data = {} }
+    state.enqueued_all_surfaces = false
     state.surface_names = {}
     for name, _ in pairs(game.surfaces) do
       state.surface_names[#state.surface_names + 1] = name
@@ -192,38 +237,55 @@ process_tick = function()
     return
   end
 
-  local surface_name = surface_names[state.surface_index]
-  local surface = game.surfaces[surface_name]
+  if not state.enqueued_all_surfaces then
+    local surface_name = surface_names[state.surface_index]
+    local surface = surface_name and game.surfaces[surface_name] or nil
 
-  if surface then
-    local surface_data = collect_surface_stats(surface)
-    local entry = export_surface_metrics(surface_name, surface_data)
-    entry.cycle_started_tick = state.cycle.started_tick
-
-    -- Append immediately as JSONL
-    local payload = helpers.table_to_json(entry) .. "\n"
-    local filename = constants.files.metrics
-    helpers.write_file(filename, payload, true, 0)
-
-    local player_targets = get_opted_in_player_indices()
-    for i = 1, #player_targets do
-      helpers.write_file(filename, payload, true, player_targets[i])
+    if surface then
+      local surface_data = collect_surface_stats(surface)
+      enqueue_surface_slices(state, surface_name, surface_data)
     end
+  end
 
-    state.cycle.surfaces[#state.cycle.surfaces + 1] = entry
+  -- After enqueueing for this surface, process a small number of slices to spread JSON work
+  local player_targets = get_opted_in_player_indices()
+  local slices_processed = 0
+  local max_slices_per_tick = constants.limits.slices_per_tick or 4
+  local queue = state.slice_queue
+  while slices_processed < max_slices_per_tick and queue and queue.head <= queue.tail do
+    local slice = queue.data[queue.head]
+    queue.data[queue.head] = nil
+    queue.head = queue.head + 1
+    local entry = {
+      type = slice.type,
+      surface = slice.common.surface,
+      force = slice.common.force,
+      tick_collected = slice.common.tick_collected,
+      timestamp = slice.common.timestamp,
+      cycle_started_tick = slice.common.cycle_started_tick,
+      research = slice.common.research,
+      data = slice.data
+    }
+    write_jsonl_entry(entry, player_targets)
+    slices_processed = slices_processed + 1
   end
 
   -- Advance to next surface (cycle back to 1 at end)
-  if state.surface_index >= surface_count then
+  if state.enqueued_all_surfaces and (not queue or queue.head > queue.tail) then
     state.surface_index = 1
 
     -- Complete cycle: write aggregated file and reset cycle
     state.cycle.completed_tick = game.tick
-    local player_targets = get_opted_in_player_indices()
     export_cycle(state.cycle, player_targets)
     state.cycle = nil
-  else
-    state.surface_index = state.surface_index + 1
+    state.slice_queue = nil
+    state.enqueued_all_surfaces = nil
+  elseif not state.enqueued_all_surfaces then
+    if state.surface_index >= surface_count then
+      state.enqueued_all_surfaces = true
+    else
+      state.surface_index = state.surface_index + 1
+    end
   end
 end
 
