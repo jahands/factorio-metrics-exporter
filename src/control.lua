@@ -277,8 +277,7 @@ process_tick = function()
       local meta_entry = {
         type = "surface",
         surface = surface_name,
-        tick_collected = game.tick,
-        timestamp = game.tick / 60,
+        tick = game.tick,
         cycle_started_tick = state.cycle.started_tick
       }
       write_jsonl_entry(meta_entry, state)
