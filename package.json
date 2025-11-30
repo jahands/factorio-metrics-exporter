@@ -1,0 +1,8 @@
+{
+  "name": "factorio-metrics-exporter",
+  "private": true,
+  "packageManager": "bun@1.3.3",
+  "devDependencies": {
+    "factoriomod-debug": "2.0.9"
+  }
+}
