@@ -69,6 +69,7 @@ local function export_surface_metrics(surface_name, force_data, player_targets)
   local game_tick = game.tick
 
   local entry = {
+    type = "surface",
     surface = surface_name,
     tick_collected = game_tick,
     timestamp = game_tick / 60,
@@ -134,24 +135,26 @@ local function export_cycle(cycle, player_targets)
     return
   end
 
-  local data = {
+  player_targets = player_targets or {}
+  local filename = constants.files.metrics
+
+  -- Write per-surface entries as JSONL during the cycle (already appended), now write cycle_end marker
+  local end_entry = {
+    type = "cycle_end",
     tick = cycle.completed_tick or game.tick,
     cycle_started_tick = cycle.started_tick,
     cycle_completed_tick = cycle.completed_tick,
-    surfaces = cycle.surfaces,
     players = #game.connected_players
   }
 
-  local filename = "metrics-exporter/metrics.json"
-  local payload = helpers.table_to_json(data)
+  local payload = helpers.table_to_json(end_entry) .. "\n"
 
-  -- Always write to server output
-  helpers.write_file(filename, payload, false, 0)
+  -- Always write to server output (append)
+  helpers.write_file(filename, payload, true, 0)
 
   -- Optionally mirror to opted-in players for debugging
-  player_targets = player_targets or {}
   for i = 1, #player_targets do
-    helpers.write_file(filename, payload, false, player_targets[i])
+    helpers.write_file(filename, payload, true, player_targets[i])
   end
 end
 
@@ -195,6 +198,18 @@ process_tick = function()
   if surface then
     local surface_data = collect_surface_stats(surface)
     local entry = export_surface_metrics(surface_name, surface_data)
+    entry.cycle_started_tick = state.cycle.started_tick
+
+    -- Append immediately as JSONL
+    local payload = helpers.table_to_json(entry) .. "\n"
+    local filename = constants.files.metrics
+    helpers.write_file(filename, payload, true, 0)
+
+    local player_targets = get_opted_in_player_indices()
+    for i = 1, #player_targets do
+      helpers.write_file(filename, payload, true, player_targets[i])
+    end
+
     state.cycle.surfaces[#state.cycle.surfaces + 1] = entry
   end
 
@@ -214,12 +229,15 @@ end
 
 script.on_init(function()
   storage.metrics_exporter = create_fresh_storage()
+  -- Start with a fresh file
+  helpers.write_file(constants.files.metrics, "", false, 0)
   register_export_handler()
 end)
 
 script.on_configuration_changed(function()
   migrate_storage()
   register_export_handler()
+  helpers.write_file(constants.files.metrics, "", false, 0)
 end)
 
 script.on_load(function()
