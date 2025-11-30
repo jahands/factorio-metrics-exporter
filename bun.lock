@@ -5,7 +5,7 @@
     "": {
       "name": "factorio-metrics-exporter",
       "devDependencies": {
-        "factoriomod-debug": "^2.0.9",
+        "factoriomod-debug": "2.0.9",
       },
     },
   },
