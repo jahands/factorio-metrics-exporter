@@ -168,6 +168,7 @@ process_tick = function()
 
   -- Start of new cycle: rebuild surface list from game.surfaces
   if state.surface_index == 1 then
+    local entity_budget_setting = math_max(settings_accessor.get_entity_budget(), 1)
     state.cycle = {
       started_tick = game.tick,
       surfaces = {}
@@ -176,11 +177,12 @@ process_tick = function()
     for name, surface in pairs(game.surfaces) do
       local entity_count = 0
       if surface and surface.valid then
-        -- Approximate work by counting entities on the surface
-        entity_count = surface.count_entities_filtered({})
+        -- Approximate work by counting up to the per-tick budget worth of entities
+        entity_count = surface.count_entities_filtered({ limit = entity_budget_setting + 1 })
       end
       state.surfaces[#state.surfaces + 1] = { name = name, entity_count = entity_count }
     end
+    state.entity_budget = entity_budget_setting
   end
 
   local surfaces = state.surfaces
@@ -193,7 +195,7 @@ process_tick = function()
     return
   end
 
-  local entity_budget = math_max(settings_accessor.get_entity_budget(), 1)
+  local entity_budget = state.entity_budget or math_max(settings_accessor.get_entity_budget(), 1)
   local used_budget = 0
 
   while used_budget < entity_budget and state.surface_index <= surface_count do
