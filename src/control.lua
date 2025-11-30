@@ -1,3 +1,5 @@
+local settings_accessor = require("settings_accessor")
+
 local function export_metrics()
   local data = {
     tick = game.tick,
@@ -53,7 +55,7 @@ local function export_metrics()
 end
 
 local function register_export_handler()
-  local interval = settings.global["factorio-metrics-exporter-interval"].value --[[@as integer]]
+  local interval = settings_accessor.get_interval()
   script.on_nth_tick(nil) -- clear existing handlers to prevent duplicates
   script.on_nth_tick(interval, function(event)
     export_metrics()
