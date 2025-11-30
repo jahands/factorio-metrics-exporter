@@ -14,5 +14,13 @@ data:extend({
     name = constants.settings.per_player,
     setting_type = "runtime-per-user",
     default_value = false
+  },
+  {
+    type = "int-setting",
+    name = constants.settings.entity_budget,
+    setting_type = "runtime-global",
+    default_value = 2000,
+    minimum_value = 100,
+    maximum_value = 1000000
   }
 })
