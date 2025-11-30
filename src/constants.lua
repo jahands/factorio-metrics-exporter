@@ -1,5 +1,5 @@
 return {
   settings = {
-    interval = "factorio-metrics-exporter-interval"
+    interval = "factorio-metrics-export-interval"
   }
 }
